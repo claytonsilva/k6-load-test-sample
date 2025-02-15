@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: quickpizza
+  name: quickpizza
+  namespace: k6-demo
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: ""
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quickpizza
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: quickpizza
+    spec:
+      volumes:
+        - name: config-volume
+          configMap:
+            name: grafana-configs
+      initContainers:
+        - name: init-datasource
+          image: chainguard/curl:latest
+          command:
+            [
+              "curl",
+              "-X",
+              "POST",
+              "http://grafana/api/datasources",
+              "-H",
+              "Content-Type: application/json",
+              "--user",
+              "$(admin-user):$(admin-password)",
+              "--data-binary",
+              "@/etc/grafana/provisioning/datasources/prometheus.json",
+            ]
+          envFrom:
+            - secretRef:
+                name: grafana
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/grafana/provisioning/datasources
+        - name: init-dashboard
+          image: chainguard/curl:latest
+          command:
+            [
+              "curl",
+              "-X",
+              "POST",
+              "http://grafana/api/dashboards/import",
+              "-H",
+              "Content-Type: application/json",
+              "--user",
+              "$(admin-user):$(admin-password)",
+              "--data-binary",
+              "@/etc/grafana/provisioning/datasources/dashboard.json",
+            ]
+          envFrom:
+            - secretRef:
+                name: grafana
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/grafana/provisioning/datasources
+      containers:
+        - image: ghcr.io/grafana/quickpizza-local:latest
+          name: quickpizza-local
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quickpizza
+  namespace: k6-demo
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: ""
+spec:
+  selector:
+    app: quickpizza
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3333
+  type: ClusterIP

@@ -1,0 +1,21 @@
+apiVersion: k6.io/v1alpha1
+kind: TestRun
+metadata:
+  name: loadtest
+  namespace: k6-demo
+spec:
+  parallelism: 1
+  script:
+    configMap:
+      name: load-test-script
+      file: k6-basic.js
+  runner:
+    resources: {}
+    env:
+      - name: K6_PROMETHEUS_RW_SERVER_URL
+        value: "http://prometheus-service:9090/api/v1/write"
+      - name: K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM
+        value: "true"
+      - name: BASE_URL
+        value: "http://quickpizza"
+  arguments: -o experimental-prometheus-rw
